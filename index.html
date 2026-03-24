@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+  <html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Viewer</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+        header { background: #1a73e8; color: white; padding: 24px 32px; }
+    header h1 { font-size: 1.8rem; }
+    header p { margin-top: 4px; opacity: 0.85; font-size: 0.95rem; }
+    .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+    .search-bar { display: flex; margin-bottom: 24px; }
+    .search-bar input { flex: 1; padding: 10px 16px; border: 1px solid #ccc; border-radius: 8px 0 0 8px; font-size: 1rem; outline: none; }
+    .search-bar input:focus { border-color: #1a73e8; }
+    .pdf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+    .pdf-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; text-decoration: none; color: inherit; display: block; }
+    .pdf-card:hover { transform: translateY(-4px); box-shadow: 0 6px 16px rgba(0,0,0,0.14); }
+    .pdf-icon { font-size: 2.4rem; margin-bottom: 10px; }
+    .pdf-name { font-size: 0.95rem; font-weight: 600; word-break: break-all; }
+    .pdf-meta { font-size: 0.8rem; color: #888; margin-top: 6px; }
+    .no-result { text-align: center; color: #999; margin-top: 60px; font-size: 1.1rem; }
+    .upload-area { border: 2px dashed #1a73e8; border-radius: 12px; padding: 32px; text-align: center; color: #1a73e8; margin-bottom: 32px; background: white; cursor: pointer; transition: background 0.2s; }
+    .upload-area:hover { background: #e8f0fe; }
+        .upload-area p { margin-top: 8px; font-size: 0.9rem; color: #555; }
+    #fileInput { display: none; }
+  </style>
+    </head>
+    <body>
+      <header>
+        <h1>PDF ファイル一覧</h1>
+        <p>PDFフォルダ内のファイルを管理・閲覧できます</p>
+      </header>
+      <div class="container">
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+          <div style="font-size:2rem">📂</div>
+          <strong>クリックしてPDFを追加</strong>
+          <p>または、ファイルをここにドラッグ＆ドロップ</p>
+        </div>
+        <input type="file" id="fileInput" accept=".pdf" multiple>
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="ファイル名で検索..." oninput="filterPdfs()">
+        </div>
+        <div class="pdf-grid" id="pdfGrid"></div>
+        <p class="no-result" id="noResult" style="display:none">PDFファイルが見つかりません</p>
+      </div>
+      <script>
+        let pdfFiles = JSON.parse(localStorage.getItem('pdfFiles') || '[]');
+    function renderPdfs(list) {
+            const grid = document.getElementById('pdfGrid');
+      const noResult = document.getElementById('noResult');
+      grid.innerHTML = '';
+              if (list.length === 0) { noResult.style.display = 'block'; return; }
+      noResult.style.display = 'none';
+      list.forEach((f, i) => {
+                const card = document.createElement('div');
+                card.className = 'pdf-card';
+        card.innerHTML = '<div class="pdf-icon">📄</div><div class="pdf-name">' + f.name + '</div><div class="pdf-meta">' + f.size + ' · ' + f.date + '</div>';
+        card.onclick = () => { if (f.url) window.open(f.url, '_blank'); };
+        grid.appendChild(card);
+});
+}
+    function filterPdfs() {
+            const q = document.getElementById('searchInput').value.toLowerCase();
+      renderPdfs(pdfFiles.filter(f => f.name.toLowerCase().includes(q)));
+    }
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+            Array.from(e.target.files).forEach(file => {
+                      const url = URL.createObjectURL(file);
+                      const size = (file.size / 1024).toFixed(1) + ' KB';
+        const date = new Date().toLocaleDateString('ja-JP');
+        pdfFiles.push({ name: file.name, size, date, url });
+    });
+      localStorage.setItem('pdfFiles', JSON.stringify(pdfFiles.map(f => ({name:f.name,size:f.size,date:f.date}))));
+      renderPdfs(pdfFiles);
+});
+    const uploadArea = document.querySelector('.upload-area');
+    uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.background = '#e8f0fe'; });
+    uploadArea.addEventListener('dragleave', () => { uploadArea.style.background = 'white'; });
+    uploadArea.addEventListener('drop', e => {
+            e.preventDefault(); uploadArea.style.background = 'white';
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+      files.forEach(file => {
+                const url = URL.createObjectURL(file);
+        const size = (file.size / 1024).toFixed(1) + ' KB';
+        const date = new Date().toLocaleDateString('ja-JP');
+        pdfFiles.push({ name: file.name, size, date, url });
+});
+      renderPdfs(pdfFiles);
+});
+    renderPdfs(pdfFiles);
+  </script>
+    </body>
+    </html>
