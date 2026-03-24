@@ -4,148 +4,194 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDF Viewer</title>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
-    header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 30px; }
-    header h1 { font-size: 1.8rem; font-weight: 700; }
-    header p { opacity: 0.85; margin-top: 4px; font-size: 0.95rem; }
-    .controls { background: white; padding: 16px 30px; border-bottom: 1px solid #e0e0e0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    .search-box { flex: 1; min-width: 200px; padding: 9px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; outline: none; transition: border 0.2s; }
-    .search-box:focus { border-color: #667eea; }
-    .sort-select { padding: 9px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; background: white; cursor: pointer; }
-    .file-count { color: #666; font-size: 0.9rem; margin-left: auto; }
-    .container { padding: 24px 30px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
-    .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; text-decoration: none; color: inherit; display: block; }
-    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.14); }
-    .thumbnail-wrap { position: relative; width: 100%; padding-top: 56.25%; background: #e8eaf6; overflow: hidden; }
-    .thumbnail-wrap canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
-    .thumbnail-wrap .pdf-placeholder { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #7986cb; }
-    .thumbnail-wrap .pdf-placeholder svg { width: 48px; height: 48px; margin-bottom: 8px; }
-    .card-info { padding: 12px 14px; }
-    .card-title { font-size: 0.9rem; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .card-meta { font-size: 0.78rem; color: #888; margin-top: 4px; }
-    .loading { text-align: center; padding: 60px; color: #667eea; font-size: 1.1rem; }
-    .error-msg { background: #fff3e0; border: 1px solid #ffcc80; border-radius: 8px; padding: 16px; margin: 20px; color: #e65100; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+    header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white; padding: 20px 30px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    header h1 { font-size: 1.5rem; font-weight: 600; }
+    .badge {
+      background: rgba(255,255,255,0.2);
+      padding: 4px 12px; border-radius: 20px; font-size: 0.8rem;
+    }
+    .controls {
+      padding: 20px 30px; display: flex; gap: 12px; align-items: center;
+      background: white; border-bottom: 1px solid #e0e0e0;
+    }
+    .controls input {
+      flex: 1; padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px;
+      font-size: 0.95rem; outline: none;
+    }
+    .controls input:focus { border-color: #1a73e8; }
+    .controls select {
+      padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px;
+      font-size: 0.95rem; background: white; cursor: pointer;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 20px; padding: 24px 30px;
+    }
+    .card {
+      background: white; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+    .thumbnail-wrap {
+      position: relative; width: 100%; padding-top: 56.25%; background: #eceff1;
+    }
+    .thumbnail-wrap canvas, .thumbnail-wrap .no-thumb {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    }
+    .no-thumb {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.5rem; color: #bdbdbd;
+    }
+    canvas { object-fit: contain; }
+    .card-info { padding: 14px; }
+    .card-title {
+      font-weight: 600; font-size: 0.9rem; margin-bottom: 6px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .card-meta { font-size: 0.78rem; color: #757575; }
+    .msg { grid-column: 1/-1; text-align: center; color: #9e9e9e; padding: 60px; font-size: 1rem; }
+    #overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85); z-index: 1000;
+      flex-direction: column; align-items: center; justify-content: center;
+    }
+    #overlay.active { display: flex; }
+    #overlay-close {
+      position: absolute; top: 20px; right: 28px;
+      color: white; font-size: 2rem; cursor: pointer;
+      background: none; border: none; line-height: 1;
+    }
+    #overlay iframe { width: 90vw; height: 85vh; border: none; border-radius: 8px; background: white; }
+    #overlay-title {
+      color: white; margin-bottom: 12px; font-size: 1rem;
+      max-width: 90vw; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>PDF Viewer</h1>
-    <p>Firebase Storage から PDF を一覧表示します</p>
-  </header>
-  <div class="controls">
-    <input type="text" class="search-box" id="searchBox" placeholder="ファイル名で検索...">
-    <select class="sort-select" id="sortSelect">
-      <option value="name">名前順</option>
-      <option value="date">日付順</option>
-      <option value="size">サイズ順</option>
-    </select>
-    <span class="file-count" id="fileCount">読み込み中...</span>
-  </div>
-  <div class="container">
-    <div id="status" class="loading">PDFを読み込んでいます...</div>
-    <div class="grid" id="grid"></div>
-  </div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyD645UfQ61JafXEtiEghfqMqti6BxXrNas",
-      authDomain: "mitsukiai-x.firebaseapp.com",
-      projectId: "mitsukiai-x",
-      storageBucket: "mitsukiai-x.firebasestorage.app",
-      messagingSenderId: "172020679566",
-      appId: "1:172020679566:web:1281082f88fce858fd1adf",
-      measurementId: "G-JB9JYM8GXK"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const storage = firebase.storage();
-    const storageRef = storage.ref();
-
-    let allFiles = [];
-
-    async function loadPDFs() {
-      const statusEl = document.getElementById('status');
-      try {
-        const result = await storageRef.listAll();
-        const pdfItems = result.items.filter(item => item.name.toLowerCase().endsWith('.pdf'));
-        const filesData = await Promise.all(pdfItems.map(async (item) => {
-          const url = await item.getDownloadURL();
-          const meta = await item.getMetadata();
-          return { name: item.name, url: url, size: meta.size, updated: meta.updated };
-        }));
-        allFiles = filesData;
-        statusEl.style.display = 'none';
-        renderGrid(allFiles);
-      } catch (err) {
-        console.error(err);
-        statusEl.className = 'error-msg';
-        statusEl.textContent = 'PDFの読み込みに失敗しました: ' + err.message;
-      }
-    }
-
-    function renderGrid(files) {
-      const gridEl = document.getElementById('grid');
-      const countEl = document.getElementById('fileCount');
-      countEl.textContent = files.length + ' 件';
-      if (files.length === 0) {
-        gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:#aaa;">Firebase StorageにPDFをアップロードしてください</div>';
+<header>
+  <h1>PDF Viewer</h1>
+  <span class="badge">Firebase Storage</span>
+</header>
+<div class="controls">
+  <input type="text" id="search" placeholder="Search PDF...">
+  <select id="sort">
+    <option value="name-asc">Name A-Z</option>
+    <option value="name-desc">Name Z-A</option>
+    <option value="time-desc">Newest</option>
+    <option value="time-asc">Oldest</option>
+  </select>
+</div>
+<div class="grid" id="grid"><div class="msg">Loading...</div></div>
+<div id="overlay">
+  <button id="overlay-close" onclick="closeOverlay()">X</button>
+  <div id="overlay-title"></div>
+  <iframe id="overlay-iframe" src=""></iframe>
+</div>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getStorage, ref, listAll, getDownloadURL, getMetadata } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+  const cfg = {
+    apiKey: "AIzaSyD645UfQ61JafXEtiEghfqMqti6BxXrNas",
+    authDomain: "mitsukiai-x.firebaseapp.com",
+    projectId: "mitsukiai-x",
+    storageBucket: "mitsukiai-x.firebasestorage.app",
+    messagingSenderId: "172020679566",
+    appId: "1:172020679566:web:1281082f88fce858fd1adf"
+  };
+  const app = initializeApp(cfg);
+  const storage = getStorage(app);
+  const pdfsRef = ref(storage, 'pdfs/');
+  let allFiles = [];
+  async function load() {
+    const grid = document.getElementById('grid');
+    try {
+      const res = await listAll(pdfsRef);
+      if (!res.items.length) {
+        grid.innerHTML = '<div class="msg">No PDFs yet.<br>Upload PDF files to Firebase Storage pdfs/ folder.</div>';
         return;
       }
-      gridEl.innerHTML = '';
-      files.forEach(file => {
-        const card = document.createElement('a');
-        card.className = 'card';
-        card.href = file.url;
-        card.target = '_blank';
-        card.rel = 'noopener';
-        const sizeKB = (file.size / 1024).toFixed(1);
-        const date = new Date(file.updated).toLocaleDateString('ja-JP');
-        const safeId = 'thumb-' + Math.random().toString(36).substr(2,9);
-        card.innerHTML = '<div class="thumbnail-wrap"><div class="pdf-placeholder" id="' + safeId + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><span>PDF</span></div></div><div class="card-info"><div class="card-title" title="' + file.name + '">' + file.name + '</div><div class="card-meta">' + sizeKB + ' KB · ' + date + '</div></div>';
-        gridEl.appendChild(card);
-        renderThumbnail(file.url, safeId);
-      });
+      allFiles = await Promise.all(res.items.map(async i => {
+        const [url, meta] = await Promise.all([getDownloadURL(i), getMetadata(i)]);
+        return { name: i.name, url, updated: meta.updated, size: meta.size };
+      }));
+      render(allFiles);
+    } catch(e) {
+      grid.innerHTML = '<div class="msg">Error: ' + e.message + '</div>';
     }
-
-    async function renderThumbnail(url, placeholderId) {
-      try {
-        const pdf = await pdfjsLib.getDocument({ url: url }).promise;
-        const page = await pdf.getPage(1);
-        const el = document.getElementById(placeholderId);
-        if (!el) return;
-        const w = el.parentElement.offsetWidth || 220;
-        const h = w * 9 / 16;
-        const vp = page.getViewport({ scale: 1 });
-        const scale = Math.min(w / vp.width, h / vp.height);
-        const sv = page.getViewport({ scale });
-        const canvas = document.createElement('canvas');
-        canvas.width = sv.width;
-        canvas.height = sv.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: sv }).promise;
-        el.parentElement.insertBefore(canvas, el);
-        el.style.display = 'none';
-      } catch(e) { console.warn('thumb error', e); }
-    }
-
-    function applyFilters() {
-      const q = document.getElementById('searchBox').value.toLowerCase();
-      const s = document.getElementById('sortSelect').value;
-      let filtered = allFiles.filter(f => f.name.toLowerCase().includes(q));
-      filtered.sort((a,b) => s==='name' ? a.name.localeCompare(b.name,'ja') : s==='date' ? new Date(b.updated)-new Date(a.updated) : b.size-a.size);
-      renderGrid(filtered);
-    }
-
-    document.getElementById('searchBox').addEventListener('input', applyFilters);
-    document.getElementById('sortSelect').addEventListener('change', applyFilters);
-    loadPDFs();
-  </script>
+  }
+  function fmt(b) {
+    return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
+  }
+  function render(files) {
+    const grid = document.getElementById('grid');
+    const q = document.getElementById('search').value.toLowerCase();
+    const s = document.getElementById('sort').value;
+    let f = files.filter(x => x.name.toLowerCase().includes(q));
+    if (s==='name-asc') f.sort((a,b)=>a.name.localeCompare(b.name));
+    else if (s==='name-desc') f.sort((a,b)=>b.name.localeCompare(a.name));
+    else if (s==='time-desc') f.sort((a,b)=>new Date(b.updated)-new Date(a.updated));
+    else f.sort((a,b)=>new Date(a.updated)-new Date(b.updated));
+    if (!f.length) { grid.innerHTML = '<div class="msg">No results.</div>'; return; }
+    grid.innerHTML = '';
+    f.forEach(file => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.onclick = () => openPDF(file.url, file.name);
+      const wrap = document.createElement('div');
+      wrap.className = 'thumbnail-wrap';
+      const ph = document.createElement('div');
+      ph.className = 'no-thumb';
+      ph.textContent = 'PDF';
+      wrap.appendChild(ph);
+      const info = document.createElement('div');
+      info.className = 'card-info';
+      const n = file.name.replace('.pdf','').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const d = new Date(file.updated).toLocaleDateString('ja-JP');
+      info.innerHTML = '<div class="card-title">'+n+'</div><div class="card-meta">'+d+' - '+fmt(file.size)+'</div>';
+      card.appendChild(wrap);
+      card.appendChild(info);
+      grid.appendChild(card);
+      renderThumb(file.url, wrap, ph);
+    });
+  }
+  async function renderThumb(url, wrap, ph) {
+    try {
+      const lib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.mjs');
+      lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.mjs';
+      const pdf = await lib.getDocument(url).promise;
+      const page = await pdf.getPage(1);
+      const vp = page.getViewport({scale: 1.2});
+      const c = document.createElement('canvas');
+      c.width = vp.width; c.height = vp.height;
+      await page.render({canvasContext: c.getContext('2d'), viewport: vp}).promise;
+      ph.remove();
+      wrap.appendChild(c);
+    } catch(e) {}
+  }
+  function openPDF(url, name) {
+    document.getElementById('overlay-title').textContent = name;
+    document.getElementById('overlay-iframe').src = url;
+    document.getElementById('overlay').classList.add('active');
+  }
+  window.closeOverlay = function() {
+    document.getElementById('overlay').classList.remove('active');
+    document.getElementById('overlay-iframe').src = '';
+  };
+  document.getElementById('search').addEventListener('input', () => render(allFiles));
+  document.getElementById('sort').addEventListener('change', () => render(allFiles));
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') window.closeOverlay(); });
+  load();
+</script>
 </body>
 </html>
