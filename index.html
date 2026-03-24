@@ -1,285 +1,160 @@
 <!DOCTYPE html>
 <html lang="ja">
-  <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>PDF Viewer</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <style>
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
-
-          header { background: #1a73e8; color: white; padding: 24px 32px; display: flex; align-items: center; gap: 16px; }
-          header h1 { font-size: 1.6rem; }
-          header p { margin-top: 2px; opacity: 0.85; font-size: 0.9rem; }
-
-          .container { max-width: 1200px; margin: 32px auto; padding: 0 24px; }
-
-          .toolbar { display: flex; gap: 12px; margin-bottom: 24px; align-items: center; flex-wrap: wrap; }
-          .toolbar input[type="text"] { flex: 1; min-width: 200px; padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; outline: none; background: white; }
-          .toolbar input[type="text"]:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.15); }
-          .sort-btn { padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; background: white; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
-          .sort-btn:hover { background: #f5f5f5; }
-
-          .upload-area { border: 2px dashed #1a73e8; border-radius: 14px; padding: 28px; text-align: center; color: #1a73e8; margin-bottom: 28px; background: white; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
-          .upload-area:hover, .upload-area.drag-over { background: #e8f0fe; border-color: #0d5bbd; }
-          .upload-area .upload-icon { font-size: 2.2rem; margin-bottom: 8px; }
-          .upload-area strong { font-size: 1rem; }
-          .upload-area p { margin-top: 6px; font-size: 0.85rem; color: #666; }
-          #fileInput { display: none; }
-
-          .pdf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
-
-          .pdf-card {
-                  background: white;
-                  border-radius: 14px;
-                  overflow: hidden;
-                  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-                  transition: transform 0.2s, box-shadow 0.2s;
-                  cursor: pointer;
-                  position: relative;
-          }
-          .pdf-card:hover { transform: translateY(-5px); box-shadow: 0 8px 24px rgba(0,0,0,0.14); }
-
-          /* 16:9 thumbnail area */
-          .thumb-wrap {
-                  position: relative;
-                  width: 100%;
-                  padding-top: 56.25%; /* 16:9 */
-                  background: #e8eaed;
-                  overflow: hidden;
-          }
-          .thumb-wrap canvas {
-                  position: absolute;
-                  top: 0; left: 0;
-                  width: 100%;
-                  height: 100%;
-                  object-fit: cover;
-          }
-          .thumb-wrap .thumb-placeholder {
-                  position: absolute;
-                  top: 0; left: 0; right: 0; bottom: 0;
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  justify-content: center;
-                  color: #aaa;
-                  font-size: 2.8rem;
-          }
-          .thumb-wrap .thumb-placeholder span { font-size: 0.75rem; margin-top: 8px; letter-spacing: 0.05em; color: #bbb; }
-          .thumb-loading {
-                  position: absolute;
-                  top: 8px; right: 8px;
-                  width: 20px; height: 20px;
-                  border: 3px solid rgba(255,255,255,0.6);
-                  border-top-color: #1a73e8;
-                  border-radius: 50%;
-                  animation: spin 0.8s linear infinite;
-          }
-          @keyframes spin { to { transform: rotate(360deg); } }
-
-          .pdf-info { padding: 14px 16px 16px; }
-          .pdf-name { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          .pdf-meta { font-size: 0.78rem; color: #888; margin-top: 5px; display: flex; gap: 10px; }
-          .badge { display: inline-block; background: #e8f0fe; color: #1a73e8; font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.04em; }
-
-          .card-overlay {
-                  position: absolute;
-                  inset: 0;
-                  background: rgba(26,115,232,0.0);
-                  transition: background 0.2s;
-                  display: flex; align-items: center; justify-content: center;
-          }
-          .pdf-card:hover .card-overlay { background: rgba(26,115,232,0.08); }
-          .open-icon { opacity: 0; font-size: 2rem; transition: opacity 0.2s; }
-          .pdf-card:hover .open-icon { opacity: 1; }
-
-          .no-result { text-align: center; color: #aaa; margin-top: 64px; font-size: 1.05rem; }
-          .no-result .no-icon { font-size: 3rem; margin-bottom: 12px; }
-
-          .count-label { font-size: 0.85rem; color: #888; margin-bottom: 16px; }
-        </style>
-  </head>
-  <body>
-      <header>
-            <div>
-                    <h1>📄 PDF ファイル一覧</h1>
-                  <p>PDFフォルダ内のファイルを管理・閲覧できます</p>
-            </div>
-      </header>
-  
-    <div class="container">
-        <div class="upload-area" id="uploadArea">
-              <div class="upload-icon">📂</div>
-              <strong>クリックしてPDFを追加</strong>
-              <p>または、ファイルをここにドラッグ＆ドロップ（複数可）</p>
-        </div>
-        <input type="file" id="fileInput" accept=".pdf" multiple>
-    
-        <div class="toolbar">
-              <input type="text" id="searchInput" placeholder="🔍  ファイル名で検索...">
-              <select class="sort-btn" id="sortSelect">
-                      <option value="date-desc">追加日 新しい順</option>option>
-                      <option value="date-asc">追加日 古い順</option>option>
-                      <option value="name-asc">名前 A→Z</option>option>
-                      <option value="name-desc">名前 Z→A</option>option>
-                      <option value="size-desc">サイズ 大きい順</option>option>
-                      <option value="size-asc">サイズ 小さい順</option>option>
-              </select>select>
-        </div>
-    
-        <p class="count-label" id="countLabel"></p>
-        <div class="pdf-grid" id="pdfGrid"></div>
-        <div class="no-result" id="noResult" style="display:none">
-              <div class="no-icon">🔍</div>
-              <p>PDFファイルが見つかりません</p>
-        </div>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+    header { background: #1a73e8; color: white; padding: 24px 32px; }
+    header h1 { font-size: 1.6rem; }
+    header p { margin-top: 2px; opacity: 0.85; font-size: 0.9rem; }
+    .container { max-width: 1200px; margin: 32px auto; padding: 0 24px; }
+    .toolbar { display: flex; gap: 12px; margin-bottom: 24px; align-items: center; flex-wrap: wrap; }
+    .toolbar input[type="text"] { flex: 1; min-width: 200px; padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; outline: none; background: white; }
+    .toolbar input[type="text"]:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.15); }
+    .sort-select { padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; background: white; font-size: 0.9rem; cursor: pointer; }
+    .upload-area { border: 2px dashed #1a73e8; border-radius: 14px; padding: 28px; text-align: center; color: #1a73e8; margin-bottom: 28px; background: white; cursor: pointer; transition: background 0.2s; }
+    .upload-area:hover, .upload-area.drag-over { background: #e8f0fe; }
+    .upload-icon { font-size: 2.2rem; margin-bottom: 8px; }
+    #fileInput { display: none; }
+    .pdf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+    .pdf-card { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; position: relative; }
+    .pdf-card:hover { transform: translateY(-5px); box-shadow: 0 8px 24px rgba(0,0,0,0.14); }
+    .thumb-wrap { position: relative; width: 100%; padding-top: 56.25%; background: #e8eaed; overflow: hidden; }
+    .thumb-wrap canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+    .thumb-placeholder { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #aaa; font-size: 2.8rem; }
+    .thumb-placeholder small { font-size: 0.75rem; margin-top: 8px; color: #bbb; }
+    .thumb-loading { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.6); border-top-color: #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pdf-info { padding: 14px 16px 16px; }
+    .pdf-name { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pdf-meta { font-size: 0.78rem; color: #888; margin-top: 5px; display: flex; gap: 10px; }
+    .badge { display: inline-block; background: #e8f0fe; color: #1a73e8; font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+    .card-overlay { position: absolute; inset: 0; background: rgba(26,115,232,0); transition: background 0.2s; display: flex; align-items: center; justify-content: center; }
+    .pdf-card:hover .card-overlay { background: rgba(26,115,232,0.08); }
+    .open-icon { opacity: 0; font-size: 2rem; transition: opacity 0.2s; }
+    .pdf-card:hover .open-icon { opacity: 1; }
+    .no-result { text-align: center; color: #aaa; margin-top: 64px; font-size: 1.05rem; }
+    .count-label { font-size: 0.85rem; color: #888; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PDF ファイル一覧</h1>
+    <p>PDFフォルダ内のファイルを管理・閲覧できます</p>
+  </header>
+  <div class="container">
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-icon">📂</div>
+      <strong>クリックしてPDFを追加</strong>
+      <p style="margin-top:6px;font-size:0.85rem;color:#666">または、ファイルをここにドラッグ＆ドロップ（複数可）</p>
     </div>
-  
-    <script>
-          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-          let pdfFiles = [];
-          try {
-                  const saved = JSON.parse(localStorage.getItem('pdfFiles') || '[]');
-                  pdfFiles = saved.map(f => ({ ...f, url: null }));
-          } catch(e) { pdfFiles = []; }
-
-          function formatSize(bytes) {
-                  if (bytes >= 1048576) return (bytes/1048576).toFixed(1) + ' MB';
-                  return (bytes/1024).toFixed(1) + ' KB';
-          }
-
-          function getSorted(list) {
-                  const v = document.getElementById('sortSelect').value;
-                  return [...list].sort((a, b) => {
-                            if (v === 'name-asc') return a.name.localeCompare(b.name);
-                            if (v === 'name-desc') return b.name.localeCompare(a.name);
-                            if (v === 'size-asc') return (a.bytes||0) - (b.bytes||0);
-                            if (v === 'size-desc') return (b.bytes||0) - (a.bytes||0);
-                            if (v === 'date-asc') return (a.ts||0) - (b.ts||0);
-                            return (b.ts||0) - (a.ts||0);
-                  });
-          }
-
-          async function renderThumb(canvas, url) {
-                  if (!url) return;
-                  try {
-                            const pdf = await pdfjsLib.getDocument(url).promise;
-                            const page = await pdf.getPage(1);
-                            const vp0 = page.getViewport({ scale: 1 });
-                            const targetW = canvas.parentElement.offsetWidth || 320;
-                            const scale = targetW / vp0.width;
-                            const vp = page.getViewport({ scale });
-                            canvas.width = vp.width;
-                            canvas.height = vp.height;
-                            await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-                  } catch(e) { /* ignore */ }
-          }
-
-          function renderGrid(list) {
-                  const grid = document.getElementById('pdfGrid');
-                  const noResult = document.getElementById('noResult');
-                  const countLabel = document.getElementById('countLabel');
-                  grid.innerHTML = '';
-                  if (list.length === 0) {
-                            noResult.style.display = 'block';
-                            countLabel.textContent = '';
-                            return;
-                  }
-                  noResult.style.display = 'none';
-                  countLabel.textContent = list.length + ' 件のPDFファイル';
-
-                  list.forEach(f => {
-                            const card = document.createElement('div');
-                            card.className = 'pdf-card';
-                            card.innerHTML =
-                                        '<div class="thumb-wrap">' +
-                                          '<div class="thumb-placeholder"><span>📄</span><span>PDF</span></div>' +
-                                          '<canvas style="display:none"></canvas>' +
-                                          (f.url ? '<div class="thumb-loading" id="loading-'+f.id+'"></div>' : '') +
-                                          '<div class="card-overlay"><div class="open-icon">🔍</div></div>' +
-                                        '</div>' +
-                                        '<div class="pdf-info">' +
-                                          '<div class="pdf-name" title="'+f.name+'">'+f.name+'</div>' +
-                                          '<div class="pdf-meta">' +
-                                            '<span>'+f.size+'</span>' +
-                                            '<span>'+f.date+'</span>' +
-                                            '<span class="badge">PDF</span>' +
-                                          '</div>' +
-                                        '</div>';
-
-                            if (f.url) {
-                                        card.onclick = () => window.open(f.url, '_blank');
-                                        const canvas = card.querySelector('canvas');
-                                        const placeholder = card.querySelector('.thumb-placeholder');
-                                        const loading = card.querySelector('[id^="loading-"]');
-                                        canvas.style.display = 'none';
-                                        renderThumb(canvas, f.url).then(() => {
-                                                      if (canvas.width > 0) {
-                                                                      canvas.style.display = 'block';
-                                                                      placeholder.style.display = 'none';
-                                                      }
-                                                      if (loading) loading.remove();
-                                        });
-                            }
-                            grid.appendChild(card);
-                  });
-          }
-
-          function filter() {
-                  const q = document.getElementById('searchInput').value.toLowerCase();
-                  const filtered = pdfFiles.filter(f => f.name.toLowerCase().includes(q));
-                  renderGrid(getSorted(filtered));
-          }
-
-          document.getElementById('searchInput').addEventListener('input', filter);
-          document.getElementById('sortSelect').addEventListener('change', filter);
-
-          document.getElementById('uploadArea').addEventListener('click', () => {
-                  document.getElementById('fileInput').click();
+    <input type="file" id="fileInput" accept=".pdf" multiple>
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="ファイル名で検索...">
+      <select class="sort-select" id="sortSelect">
+        <option value="date-desc">追加日 新しい順</option>
+        <option value="date-asc">追加日 古い順</option>
+        <option value="name-asc">名前 A-Z</option>
+        <option value="name-desc">名前 Z-A</option>
+        <option value="size-desc">サイズ 大きい順</option>
+        <option value="size-asc">サイズ 小さい順</option>
+      </select>
+    </div>
+    <p class="count-label" id="countLabel"></p>
+    <div class="pdf-grid" id="pdfGrid"></div>
+    <div class="no-result" id="noResult" style="display:none">
+      <div style="font-size:3rem">🔍</div>
+      <p style="margin-top:12px">PDFファイルが見つかりません</p>
+    </div>
+  </div>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    let pdfFiles = [];
+    try { pdfFiles = JSON.parse(localStorage.getItem('pdfFiles') || '[]').map(f => ({...f, url: null})); } catch(e) {}
+    function fmtSize(b) { return b >= 1048576 ? (b/1048576).toFixed(1)+' MB' : (b/1024).toFixed(1)+' KB'; }
+    function getSorted(list) {
+      const v = document.getElementById('sortSelect').value;
+      return [...list].sort((a,b) => {
+        if (v==='name-asc') return a.name.localeCompare(b.name);
+        if (v==='name-desc') return b.name.localeCompare(a.name);
+        if (v==='size-asc') return (a.bytes||0)-(b.bytes||0);
+        if (v==='size-desc') return (b.bytes||0)-(a.bytes||0);
+        if (v==='date-asc') return (a.ts||0)-(b.ts||0);
+        return (b.ts||0)-(a.ts||0);
+      });
+    }
+    async function renderThumb(canvas, url) {
+      if (!url) return;
+      try {
+        const pdf = await pdfjsLib.getDocument(url).promise;
+        const page = await pdf.getPage(1);
+        const vp0 = page.getViewport({scale:1});
+        const w = canvas.parentElement.offsetWidth || 320;
+        const vp = page.getViewport({scale: w / vp0.width});
+        canvas.width = vp.width; canvas.height = vp.height;
+        await page.render({canvasContext: canvas.getContext('2d'), viewport: vp}).promise;
+      } catch(e) {}
+    }
+    function renderGrid(list) {
+      const grid = document.getElementById('pdfGrid');
+      const noResult = document.getElementById('noResult');
+      const countLabel = document.getElementById('countLabel');
+      grid.innerHTML = '';
+      if (!list.length) { noResult.style.display='block'; countLabel.textContent=''; return; }
+      noResult.style.display = 'none';
+      countLabel.textContent = list.length + ' 件のPDFファイル';
+      list.forEach(f => {
+        const card = document.createElement('div');
+        card.className = 'pdf-card';
+        const hasUrl = !!f.url;
+        card.innerHTML =
+          '<div class="thumb-wrap">' +
+            '<div class="thumb-placeholder">📄<small>PDF</small></div>' +
+            '<canvas style="display:none"></canvas>' +
+            (hasUrl ? '<div class="thumb-loading"></div>' : '') +
+            '<div class="card-overlay"><div class="open-icon">🔍</div></div>' +
+          '</div>' +
+          '<div class="pdf-info">' +
+            '<div class="pdf-name" title="' + f.name + '">' + f.name + '</div>' +
+            '<div class="pdf-meta"><span>' + f.size + '</span><span>' + f.date + '</span><span class="badge">PDF</span></div>' +
+          '</div>';
+        if (hasUrl) {
+          card.onclick = () => window.open(f.url, '_blank');
+          const canvas = card.querySelector('canvas');
+          const ph = card.querySelector('.thumb-placeholder');
+          const spin = card.querySelector('.thumb-loading');
+          renderThumb(canvas, f.url).then(() => {
+            if (canvas.width > 0) { canvas.style.display='block'; ph.style.display='none'; }
+            if (spin) spin.remove();
           });
-
-          document.getElementById('fileInput').addEventListener('change', function(e) {
-                  addFiles(Array.from(e.target.files));
-                  this.value = '';
-          });
-
-          const uploadArea = document.getElementById('uploadArea');
-          uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
-          uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
-          uploadArea.addEventListener('drop', e => {
-                  e.preventDefault(); uploadArea.classList.remove('drag-over');
-                  addFiles(Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf'));
-          });
-
-          function addFiles(files) {
-                  files.forEach(file => {
-                            const url = URL.createObjectURL(file);
-                            const id = Date.now() + Math.random();
-                            pdfFiles.unshift({
-                                        id, name: file.name, size: formatSize(file.size),
-                                        bytes: file.size, date: new Date().toLocaleDateString('ja-JP'),
-                                        ts: Date.now(), url
-                            });
-                  });
-                  saveMeta();
-                  filter();
-          }
-
-          function saveMeta() {
-                  localStorage.setItem('pdfFiles', JSON.stringify(
-                            pdfFiles.map(f => ({ id:f.id, name:f.name, size:f.size, bytes:f.bytes, date:f.date, ts:f.ts }))
-                          ));
-          }
-
-          filter();
-    </script>
-  </body>
-</html>html>
-    </script></strong></p></h1>
-            </div>
-      </header>
-  </body>
-    </style></title>
-  </head>
+        }
+        grid.appendChild(card);
+      });
+    }
+    function filter() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      renderGrid(getSorted(pdfFiles.filter(f => f.name.toLowerCase().includes(q))));
+    }
+    document.getElementById('searchInput').addEventListener('input', filter);
+    document.getElementById('sortSelect').addEventListener('change', filter);
+    document.getElementById('uploadArea').addEventListener('click', () => document.getElementById('fileInput').click());
+    document.getElementById('fileInput').addEventListener('change', function(e) { addFiles(Array.from(e.target.files)); this.value=''; });
+    const ua = document.getElementById('uploadArea');
+    ua.addEventListener('dragover', e => { e.preventDefault(); ua.classList.add('drag-over'); });
+    ua.addEventListener('dragleave', () => ua.classList.remove('drag-over'));
+    ua.addEventListener('drop', e => { e.preventDefault(); ua.classList.remove('drag-over'); addFiles(Array.from(e.dataTransfer.files).filter(f=>f.type==='application/pdf')); });
+    function addFiles(files) {
+      files.forEach(file => {
+        pdfFiles.unshift({ id: Date.now()+Math.random(), name: file.name, size: fmtSize(file.size), bytes: file.size, date: new Date().toLocaleDateString('ja-JP'), ts: Date.now(), url: URL.createObjectURL(file) });
+      });
+      localStorage.setItem('pdfFiles', JSON.stringify(pdfFiles.map(f=>({id:f.id,name:f.name,size:f.size,bytes:f.bytes,date:f.date,ts:f.ts}))));
+      filter();
+    }
+    filter();
+  </script>
+</body>
+</html>
