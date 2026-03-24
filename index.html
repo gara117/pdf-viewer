@@ -111,7 +111,7 @@
   };
   const app = initializeApp(cfg);
   const storage = getStorage(app);
-  const pdfsRef = ref(storage, 'pdfs/');
+  const pdfsRef = ref(storage);
   let allFiles = [];
   async function load() {
     const grid = document.getElementById('grid');
